@@ -1,0 +1,7 @@
+typer
+rich
+psutil
+numpy
+pandas
+scikit-learn
+pytest
