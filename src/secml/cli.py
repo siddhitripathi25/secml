@@ -1,5 +1,7 @@
 """SecML CLI Application."""
 
+import time
+from datetime import datetime
 from typing import Optional
 
 import typer
@@ -52,9 +54,12 @@ def main(
         console.print("Use [bold cyan]secml --help[/bold cyan] for available options.")
 
 
-@app.command()
-def scan() -> None:
-    """Run a one-time behavioral security scan of the local machine."""
+def _run_core_pipeline() -> dict:
+    """Run a single iteration of telemetry collection, detection, and scoring.
+    
+    Returns:
+        dict: The calculated risk score dictionary.
+    """
     from secml.utils.display import (
         print_anomaly_results,
         print_baseline_unavailable,
@@ -62,11 +67,7 @@ def scan() -> None:
         print_error,
         print_rule_detections,
         print_risk_score,
-        print_scan_footer,
-        print_scan_header,
     )
-
-    print_scan_header()
 
     # ------------------------------------------------------------------
     # 1. Collect telemetry
@@ -177,11 +178,55 @@ def scan() -> None:
         rule_score=risk["rule_score"],
         anomaly_score=risk["anomaly_score"],
     )
+    
+    return risk
 
+
+@app.command()
+def scan() -> None:
+    """Run a one-time behavioral security scan of the local machine."""
+    from secml.utils.display import print_scan_footer, print_scan_header
+
+    print_scan_header()
+    risk = _run_core_pipeline()
     print_scan_footer()
 
     if risk["level"] in ("HIGH", "CRITICAL"):
         raise typer.Exit(code=1)
+
+
+@app.command()
+def monitor(
+    interval: int = typer.Option(
+        5,
+        "--interval",
+        "-i",
+        help="Monitoring interval in seconds",
+        min=1,
+    )
+) -> None:
+    """Run a continuous behavioral security scan in the terminal."""
+    from rich.rule import Rule
+    from rich.panel import Panel
+
+    console.print(Rule("[bold magenta]SecML Monitor Mode Started[/bold magenta]"))
+    console.print(f"[dim]Interval: {interval} seconds. Press Ctrl+C to stop.[/dim]")
+    
+    try:
+        while True:
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            console.print()
+            console.print(Rule(f"[bold cyan]Scan Cycle - {now_str}[/bold cyan]"))
+            
+            _run_core_pipeline()
+            
+            # Wait for next cycle
+            time.sleep(interval)
+            
+    except KeyboardInterrupt:
+        console.print()
+        console.print(Panel("[bold green]Monitor mode stopped successfully by user.[/bold green]", border_style="green"))
+        raise typer.Exit(code=0)
 
 
 if __name__ == "__main__":
