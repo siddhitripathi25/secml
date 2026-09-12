@@ -16,6 +16,12 @@ from secml.detection.anomaly import (
     prepare_feature_matrix,
     train_anomaly_model,
 )
+from secml.detection.baseline import (
+    DEFAULT_BASELINE_PATH,
+    create_baseline,
+    load_baseline,
+    save_baseline,
+)
 
 __all__ = [
     # Feature extraction
@@ -33,4 +39,9 @@ __all__ = [
     "DEFAULT_N_ESTIMATORS",
     "DEFAULT_CONTAMINATION",
     "DEFAULT_RANDOM_STATE",
+    # Baseline system
+    "create_baseline",
+    "save_baseline",
+    "load_baseline",
+    "DEFAULT_BASELINE_PATH",
 ]
