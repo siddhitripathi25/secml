@@ -345,3 +345,44 @@ def test_scan_exits_1_for_critical():
     risk = {"score": 95, "level": "CRITICAL", "rule_score": 70, "anomaly_score": 25}
     result = _invoke_scan_with_mocks(risk=risk)
     assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# Monitor Command Tests
+# ---------------------------------------------------------------------------
+
+def test_monitor_command_exists_in_help():
+    """Verify that 'monitor' appears in the CLI help output."""
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "monitor" in result.stdout.lower()
+
+
+def test_monitor_stops_on_interrupt():
+    """Verify that monitor loop exits gracefully on Ctrl+C (KeyboardInterrupt)."""
+    with patch("secml.cli._run_core_pipeline", return_value=_FAKE_RISK) as mock_pipeline, \
+         patch("secml.cli.time.sleep", side_effect=KeyboardInterrupt):
+        
+        result = runner.invoke(app, ["monitor"])
+        
+        # It should run the pipeline once before hitting sleep
+        mock_pipeline.assert_called_once()
+        
+        # Exit code should be 0 because it's a graceful exit
+        assert result.exit_code == 0
+        assert "Monitor mode stopped successfully" in result.stdout
+
+
+def test_monitor_uses_interval_option():
+    """Verify that monitor passes the interval option to sleep correctly."""
+    with patch("secml.cli._run_core_pipeline", return_value=_FAKE_RISK), \
+         patch("secml.cli.time.sleep", side_effect=KeyboardInterrupt) as mock_sleep:
+        
+        # Pass interval of 10
+        result = runner.invoke(app, ["monitor", "--interval", "10"])
+        
+        assert result.exit_code == 0
+        # Check that sleep was called with the custom interval
+        mock_sleep.assert_called_once_with(10)
+        assert "Interval: 10 seconds" in result.stdout
+

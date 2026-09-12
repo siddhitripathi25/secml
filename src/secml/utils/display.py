@@ -145,7 +145,8 @@ def print_anomaly_results(anomaly_results: List[Dict[str, Any]]) -> None:
     else:
         body = (
             f"[red]{anomalous_count} of {total} observation(s) flagged as ANOMALY.[/red]\n"
-            "[dim]The ML engine identified behaviour that differs from the training data.[/dim]"
+            "[dim]The ML engine identified potentially suspicious behavior that differs from the training data.[/dim]\n"
+            "[dim]Further investigation recommended.[/dim]"
         )
         border = "red"
 
@@ -157,7 +158,7 @@ def print_baseline_unavailable() -> None:
     console.print(
         Panel(
             "[yellow]ML anomaly detection skipped — no baseline available.\n"
-            "Run [bold cyan]secml baseline create[/bold cyan] to create one first.[/yellow]",
+            "A behavioral baseline must be generated programmatically before ML scanning can occur.[/yellow]",
             title="[bold]ML Anomaly Analysis[/bold]",
             border_style="yellow",
         )
