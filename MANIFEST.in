@@ -1,0 +1,9 @@
+prune tests
+prune data
+prune docs
+global-exclude *.py[cod]
+global-exclude __pycache__
+global-exclude *.so
+global-exclude .DS_Store
+global-exclude .env
+global-exclude .pytest_cache
