@@ -1,10 +1,22 @@
 """SecML CLI Application."""
 
 from typing import Optional
+
 import typer
 from rich.console import Console
 
 from secml import __version__
+
+# Pipeline components — imported at module level so tests can patch them
+# via  patch("secml.cli.<name>", ...)
+from secml.collectors.system import get_system_info
+from secml.collectors.process import get_processes
+from secml.collectors.network import get_network_connections
+from secml.detection.features import extract_features
+from secml.detection.rules import evaluate_rules
+from secml.detection.anomaly import train_anomaly_model, detect_anomalies
+from secml.detection.baseline import load_baseline
+from secml.scoring.risk import calculate_risk_score
 
 app = typer.Typer(
     name="secml",
@@ -53,14 +65,6 @@ def scan() -> None:
         print_scan_footer,
         print_scan_header,
     )
-    from secml.collectors.system import get_system_info
-    from secml.collectors.process import get_processes
-    from secml.collectors.network import get_network_connections
-    from secml.detection.features import extract_features
-    from secml.detection.rules import evaluate_rules
-    from secml.detection.anomaly import train_anomaly_model, detect_anomalies
-    from secml.detection.baseline import load_baseline
-    from secml.scoring.risk import calculate_risk_score
 
     print_scan_header()
 
@@ -115,7 +119,6 @@ def scan() -> None:
     try:
         baseline = load_baseline()
     except FileNotFoundError:
-        # No baseline yet — inform the user, skip ML
         print_baseline_unavailable()
         baseline = None
     except ValueError as exc:
@@ -124,22 +127,16 @@ def scan() -> None:
 
     if baseline is not None:
         try:
-            # Reconstruct training observations from baseline statistics.
-            # We synthesise two observations per feature using the stored min/max
-            # so that the model has something to train on without needing raw data.
-            n_obs = baseline.get("n_observations", 0)
             feat_stats = baseline.get("features", {})
+            n_obs = baseline.get("n_observations", 0)
 
             if feat_stats and n_obs >= 2:
-                # Build a minimal representative dataset from baseline stats:
-                # one observation at the mean, one at ±1 std for each feature.
                 keys = list(feat_stats.keys())
-                means  = [feat_stats[k].get("mean", 0.0) for k in keys]
-                mins   = [feat_stats[k].get("min",  0.0) for k in keys]
-                maxs   = [feat_stats[k].get("max",  0.0) for k in keys]
+                means = [feat_stats[k].get("mean", 0.0) for k in keys]
+                mins  = [feat_stats[k].get("min",  0.0) for k in keys]
+                maxs  = [feat_stats[k].get("max",  0.0) for k in keys]
 
                 training_data = [means, mins, maxs]
-                # Add a few interpolated points so Isolation Forest has enough data
                 for alpha in (0.25, 0.5, 0.75):
                     point = [
                         mins[i] + alpha * (maxs[i] - mins[i])
@@ -149,11 +146,10 @@ def scan() -> None:
 
                 model = train_anomaly_model(training_data, contamination=0.05)
 
-                # Build a single feature vector for the current observation
                 current_vector = [[
-                    float(feat_stats[k].get("mean", 0.0)) if k not in features else
-                    (float(features[k]) if isinstance(features.get(k), (int, float)) else
-                     float(feat_stats[k].get("mean", 0.0)))
+                    (float(features[k])
+                     if isinstance(features.get(k), (int, float))
+                     else float(feat_stats[k].get("mean", 0.0)))
                     for k in keys
                 ]]
 
@@ -164,7 +160,7 @@ def scan() -> None:
 
         except ValueError as exc:
             print_error(f"ML analysis failed: {exc}")
-        except Exception as exc:  # noqa: BLE001 — unexpected ML failures should not crash the scan
+        except Exception as exc:  # noqa: BLE001
             print_error(f"ML analysis encountered an unexpected error: {exc}")
 
     # ------------------------------------------------------------------
@@ -184,7 +180,6 @@ def scan() -> None:
 
     print_scan_footer()
 
-    # Exit with non-zero code when risk level is HIGH or CRITICAL
     if risk["level"] in ("HIGH", "CRITICAL"):
         raise typer.Exit(code=1)
 
